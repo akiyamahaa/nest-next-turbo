@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LessonStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum GameOutcome {
+  WIN
+  LOSS
+  DRAW
+}
+
+model Rank {
+  id          String   @id @default(cuid())
+  title       String   @unique // Tên cấp bậc (ví dụ: "Bronze", "Silver", "Gold",...)
+  minScore    Int // Điểm tối thiểu để đạt cấp bậc này
+  maxScore    Int? // Điểm tối đa (có thể null nếu đây là cấp cao nhất)
+  description String?
+  iconUrl     String? // Icon hoặc hình ảnh đại diện cho rank
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[] // Quan hệ 1-nhiều: nhiều User có thể thuộc cùng 1 rank
+}
+
+model User {
+  id                 String               @id @default(uuid())
+  email              String               @unique
+  username           String?
+  password           String
+  name               String
+  age                Int?
+  avatar             String?
+  scoreChallenge     Int                  @default(0) // Tổng điểm của người dùng
+  rankId             String? // Khóa ngoại đến Rank
+  rank               Rank?                @relation(fields: [rankId], references: [id])
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  UserQuizResult     UserQuizResult[]
+  UserBadge          UserBadge[]
+  UserLessonProgress UserLessonProgress[]
+  gameHistories      GameHistory[]
+}
+
+model GameHistory {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  outcome     GameOutcome // Kết quả: WIN, LOSS hay DRAW
+  scoreChange Int // Số điểm thay đổi: dương nếu thắng, âm nếu thua, hoặc 0 nếu hòa
+  moves       String? // Lưu lại lịch sử nước đi (ví dụ: PGN hoặc JSON)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  lessons   Lesson[]
+  quizzes   Quiz[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lesson {
+  id                 String               @id @default(cuid())
+  title              String
+  content            String // Có thể là markdown hoặc HTML mô tả thế cờ
+  imageUrl           String? // Hình ảnh minh họa bàn cờ (nếu có)
+  videoUrl           String? // Clip hướng dẫn (nếu có)
+  categoryId         String
+  category           Category             @relation(fields: [categoryId], references: [id])
+  quizzes            Quiz[] // (Tùy chọn) Quiz liên quan đến bài giảng
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  UserLessonProgress UserLessonProgress[]
+}
+
+model Quiz {
+  id             String           @id @default(cuid())
+  title          String
+  description    String?
+  // Quiz có thể gắn với bài giảng hoặc không
+  lessonId       String?
+  lesson         Lesson?          @relation(fields: [lessonId], references: [id])
+  categoryId     String
+  category       Category         @relation(fields: [categoryId], references: [id])
+  questions      Question[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  UserQuizResult UserQuizResult[]
+}
+
+model Question {
+  id              String   @id @default(cuid())
+  text            String
+  imageUrl        String?
+  quizId          String
+  quiz            Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  // Danh sách các options thuộc câu hỏi
+  options         Option[] @relation("QuestionOptions")
+  // Lưu ID đáp án đúng (tùy chọn)
+  correctOptionId String   @unique
+  // Relation cho đáp án đúng; đảm bảo đáp án đúng thuộc về options của câu hỏi
+  correctOption   Option   @relation("CorrectOption", fields: [correctOptionId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Option {
+  id          String   @id @default(cuid())
+  questionId  String
+  question    Question @relation("QuestionOptions", fields: [questionId], references: [id])
+  label       String
+  text        String
+  explanation String // Lời giải thích cho đáp án, đúng hoặc sai đều có lời giải thích
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Option này được dùng làm đáp án đúng cho một câu hỏi (back relation)
+  questionForCorrect Question? @relation("CorrectOption")
+
+  @@unique([questionId, label])
+}
+
+model UserLessonProgress {
+  id          String       @id @default(cuid())
+  userId      String
+  lessonId    String
+  user        User         @relation(fields: [userId], references: [id])
+  lesson      Lesson       @relation(fields: [lessonId], references: [id])
+  status      LessonStatus // Trạng thái bài học: chưa bắt đầu, đang học hay đã hoàn thành
+  completedAt DateTime? // Thời điểm hoàn thành (nếu có)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, lessonId])
+}
+
+model UserQuizResult {
+  id            String   @id @default(cuid())
+  userId        String
+  quizId        String
+  user          User     @relation(fields: [userId], references: [id])
+  quiz          Quiz     @relation(fields: [quizId], references: [id])
+  score         Float // Điểm số đạt được (có thể là Int nếu hệ thống của bạn không dùng số thập phân)
+  attemptNumber Int? // Số lần thử (nếu cần theo dõi nhiều lần làm quiz)
+  completedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Nếu bạn chỉ cho phép 1 lần làm quiz, có thể thêm @@unique([userId, quizId])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String? // Hình ảnh biểu thị huy hiệu (nếu có)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  id         String   @id @default(cuid())
+  userId     String
+  badgeId    String
+  user       User     @relation(fields: [userId], references: [id])
+  badge      Badge    @relation(fields: [badgeId], references: [id])
+  acquiredAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
