@@ -115,9 +115,9 @@ model Question {
   // Danh sách các options thuộc câu hỏi
   options         Option[] @relation("QuestionOptions")
   // Lưu ID đáp án đúng (tùy chọn)
-  correctOptionId String   @unique
+  correctOptionId String?  @unique
   // Relation cho đáp án đúng; đảm bảo đáp án đúng thuộc về options của câu hỏi
-  correctOption   Option   @relation("CorrectOption", fields: [correctOptionId], references: [id])
+  correctOption   Option?  @relation("CorrectOption", fields: [correctOptionId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
