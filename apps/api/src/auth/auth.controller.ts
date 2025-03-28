@@ -8,18 +8,23 @@ import { JwtAuthGuard } from './guards/jwt.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('signup')
+  @Post('sign-up')
   async signUp(@Body() signUpDto: SignUpDto) {
     return this.authService.signUp(signUpDto);
   }
 
-  @Post('signin')
+  @Post('sign-in')
   async signIn(@Body() signInDto: SignInDto) {
     return this.authService.signIn(signInDto);
   }
 
+  @Post('sign-out')
+  async signOut() {
+    return this.authService.signOut();
+  }
+
   @UseGuards(JwtAuthGuard)
-  @Get('profile')
+  @Get('me')
   async getProfile(@Req() req) {
     const userId = req.user?.id; // Lấy userId từ token
     if (!userId) {

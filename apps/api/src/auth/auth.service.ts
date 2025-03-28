@@ -16,6 +16,20 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  async validateUser(email: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    return user;
+  }
+
   async signUp(signUpDto: SignUpDto) {
     const { email, password, name, username } = signUpDto;
 
@@ -44,26 +58,13 @@ export class AuthService {
     return newUser;
   }
 
-  async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new BadRequestException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new BadRequestException('Invalid credentials');
-    }
-
-    return user;
-  }
   async signIn(signInDto: SignInDto) {
     const { email, password } = signInDto;
     const user = await this.validateUser(email, password);
     // Tạo JWT token
     const payload = { email: user.email, sub: user.id };
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: this.jwtService.sign(payload, { expiresIn: '2h' }),
     };
   }
 
@@ -76,5 +77,9 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
     return user;
+  }
+
+  async signOut() {
+    return { message: 'User successfully logged out' };
   }
 }
